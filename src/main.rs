@@ -1,4 +1,4 @@
-use application::game;
+use space_cake::game;
 
 fn main() {
     #[allow(unused)]

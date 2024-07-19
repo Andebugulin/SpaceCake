@@ -3,7 +3,7 @@ pub mod collectible;
 pub mod enemy;
 pub mod wall;
 
-pub use player::Player;
+pub use player::{Player, PlayerBuilder};
 pub use collectible::Collectible;
 pub use enemy::Enemy;
 pub use wall::Wall;
