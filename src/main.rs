@@ -1,3 +1,6 @@
+use application::game;
+
 fn main() {
-    println!("Hello, world!");
+    #[allow(unused)]
+    let mut game = game::Game::new();
 }

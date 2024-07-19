@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "space_cake"
+name = "application"
 version = "0.1.0"
