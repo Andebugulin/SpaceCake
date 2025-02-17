@@ -7,3 +7,5 @@ edition = "2021"
 num = "0.4.0"
 rand = "0.8.5"
 crossterm = "0.25.0"
+ggez = "0.9"
+glam = { version = "0.24", features = ["rand"] }  # Vector math library

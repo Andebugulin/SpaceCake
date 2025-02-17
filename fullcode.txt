@@ -1,0 +1,697 @@
+use rand::rngs::ThreadRng;
+use std::ops::Range;
+
+pub trait Position<T> {
+    fn position(&self) -> &crate::unit::Position<T>;
+    fn set_rand_position(&mut self, rng: &mut ThreadRng, x_range: Range<T>, y_range: Range<T>);
+}
+use crate::{unit::Collectible, unit::Enemy, unit::Player, unit::Wall};
+use std::time::Duration;
+use rand::prelude::*;
+
+#[allow(unused)]
+pub struct Game {
+    enemies: Vec<Enemy>,
+    walls: Vec<Wall>,
+    collectible: Collectible,
+    player: Player,
+}
+
+#[allow(clippy::new_without_default)]
+impl Game {
+    pub fn new() -> Self {
+        Self {
+            enemies: vec![Enemy::default(), Enemy::default()],
+            walls: vec![Wall::default(), Wall::default(), Wall::default()],
+            collectible: Collectible::default(),
+            player: Player::default(),
+        }
+    }
+
+    pub fn player(&self) -> &Player {
+        &self.player
+    }
+
+    pub fn enemies(&self) -> &Vec<Enemy> {
+        &self.enemies
+    }
+
+    pub fn enemies_mut(&mut self) -> &mut Vec<Enemy> {
+        &mut self.enemies
+    }
+
+    pub fn walls(&self) -> &Vec<Wall> {
+        &self.walls
+    }
+
+    pub fn collectible(&self) -> &Collectible {
+        &self.collectible
+    }
+
+    pub fn update(&mut self, delta_time: Duration) {
+        if !self.player.is_alive() {
+            return;
+        }
+
+        let delta_seconds = delta_time.as_secs_f64();
+        
+
+        // Update enemy positions - multiply by delta_time for smooth movement
+        for enemy in &mut self.enemies {
+            let target_pos = self.player.position().clone();
+            enemy.move_to(&target_pos);
+            
+            // Check collision with player
+            let dx = enemy.position().x - self.player.position().x;
+            let dy = enemy.position().y - self.player.position().y;
+            let distance = (dx * dx + dy * dy).sqrt();
+            
+            if distance < 30.0 {  // Collision radius increased for better gameplay
+                self.player.take_damage(10);
+                println!("Player hit! Health: {}", self.player.health()); // Debug info
+            }
+        }
+
+        // Check collectible collision
+        let dx = (self.collectible.position().x as f64) - self.player.position().x;
+        let dy = (self.collectible.position().y as f64) - self.player.position().y;
+        let distance = (dx * dx + dy * dy).sqrt();
+        
+        if distance < 30.0 {  // Collection radius increased for better gameplay
+            // Respawn collectible in random position
+            let mut rng = thread_rng();
+            self.collectible.set_rand_position(&mut rng, 0..800, 0..600); // Match window size
+            // Could add points/healing here
+            println!("Collectible gathered!"); // Debug info
+        }
+    }
+
+    pub fn move_player(&mut self, dx: f64, dy: f64) {
+        println!("move_player called: dx = {}, dy = {}", dx, dy); // Debug print
+    
+        if !self.player.is_alive() {
+            return;
+        }
+    
+        let speed = self.player.speed() * 5.0; // Increased speed for better gameplay
+        println!("Player speed: {}", speed); // Debug print
+    
+        let new_x = self.player.position().x + dx * speed;
+        let new_y = self.player.position().y + dy * speed;
+    
+        // Debug: Print new position
+        println!("New player position: ({}, {})", new_x, new_y);
+    
+        // Keep player in bounds
+        let new_x = new_x.clamp(0.0, 800.0);
+        let new_y = new_y.clamp(0.0, 600.0);
+    
+        // Debug: Print clamped position
+        println!("Clamped player position: ({}, {})", new_x, new_y);
+    
+        // Check wall collisions
+        let can_move = !self.walls.iter().any(|wall| {
+            let wall_x = wall.position().x as f64;
+            let wall_y = wall.position().y as f64;
+            let distance = ((new_x - wall_x).powi(2) + (new_y - wall_y).powi(2)).sqrt();
+            if distance < 35.0 {
+                println!("Wall collision detected at: ({}, {})", wall_x, wall_y); // Debug print
+                true
+            } else {
+                false
+            }
+        });
+    
+        if can_move {
+            println!("Calling move_by: dx = {}, dy = {}", dx * speed, dy * speed); // Debug print
+            self.player.move_by(dx * speed, dy * speed);
+        } else {
+            println!("Wall collision detected, cannot move"); // Debug print
+        }
+    
+        // Debug: Print final player position
+        println!(
+            "Final player position: ({}, {})",
+            self.player.position().x,
+            self.player.position().y
+        );
+    }
+
+    pub fn initialize(&mut self) {
+        let mut rng = thread_rng();
+    
+        // Position player in center
+        self.player.position_mut().x = 400.0;
+        self.player.position_mut().y = 300.0;
+    
+        // Spread enemies around the edges
+        for enemy in &mut self.enemies {
+            let mut enemy_rng = thread_rng();
+            if rng.gen_bool(0.5) {
+                enemy.set_rand_position(&mut enemy_rng, 5.0..10.0, 5.0..100.0);
+            } else {
+                enemy.set_rand_position(&mut enemy_rng, 750.0..800.0, 0.0..600.0);
+            }
+        }
+    
+        // Position walls in strategic locations
+        for (i, wall) in self.walls.iter_mut().enumerate() {
+            let x = ((i as f64 + 1.0) * 200.0) as u16;
+            let mut wall_rng = thread_rng();
+            wall.set_rand_position(&mut wall_rng, x - 50..x + 50, 250..350);
+        }
+    
+        // Position collectible randomly but away from player
+        self.collectible.set_rand_position(&mut rng, 600..750, 100..500);
+    }
+}pub mod game;
+pub mod unit;
+pub mod traits;
+pub mod graphics;  // Add this line
+
+pub use traits::*;// src/unit/inventory.rs
+#[derive(Debug, Clone)]
+pub struct Item {
+    pub id: u32,
+    pub name: String,
+    pub item_type: ItemType,
+    pub value: u32,
+}
+
+#[derive(Debug, Clone)]
+pub enum ItemType {
+    Weapon { damage: u32 },
+    Armor { defense: u32 },
+    Consumable { health_restore: u32, mana_restore: u32 },
+}
+
+#[derive(Default)]
+pub struct Inventory {
+    items: Vec<Item>,
+    capacity: usize,
+}
+
+impl Inventory {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            items: Vec::with_capacity(capacity),
+            capacity,
+        }
+    }
+
+    pub fn add_item(&mut self, item: Item) -> bool {
+        if self.items.len() < self.capacity {
+            self.items.push(item);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn remove_item(&mut self, index: usize) -> Option<Item> {
+        if index < self.items.len() {
+            Some(self.items.remove(index))
+        } else {
+            None
+        }
+    }
+}// src/unit/player.rs
+use rand::rngs::ThreadRng;
+use rand::Rng;
+use std::ops::Range;
+use crate::unit::Position;
+use crate::unit::Stats;
+use crate::unit::Inventory;
+
+#[derive(Default)]
+pub struct Player {
+    position: Position<f64>,
+    speed: f64,
+    health: u8,
+    stats: Stats,
+    inventory: Inventory,
+}
+
+impl Player {
+    pub fn is_alive(&self) -> bool {
+        self.health > 0
+    }
+
+    pub fn take_damage(&mut self, damage: u8) {
+        if damage >= self.health {
+            self.health = 0;
+        } else {
+            self.health -= damage;
+        }
+    }
+
+    pub fn health(&self) -> u8 {
+        self.health
+    }
+
+    pub fn speed(&self) -> f64 {
+        self.speed
+    }
+
+    pub fn position(&self) -> &Position<f64> {
+        &self.position
+    }
+
+    pub fn position_mut(&mut self) -> &mut Position<f64> {
+        &mut self.position
+    }
+
+    pub fn move_by(&mut self, dx: f64, dy: f64) {
+        println!("move_by called: dx = {}, dy = {}", dx, dy); // Debug print
+    
+        // Print current position before update
+        println!(
+            "Current player position: ({}, {})",
+            self.position.x, self.position.y
+        );
+    
+        // Update position
+        self.position.x += dx;
+        self.position.y += dy;
+    
+        // Print updated position
+        println!(
+            "Updated player position: ({}, {})",
+            self.position.x, self.position.y
+        );
+    }
+
+    pub fn set_rand_position(&mut self, rng: &mut ThreadRng, x_range: Range<f64>, y_range: Range<f64>) {
+        self.position.x = rng.gen_range(x_range);
+        self.position.y = rng.gen_range(y_range);
+    }
+
+    pub fn stats(&self) -> &Stats {
+        &self.stats
+    }
+
+    pub fn stats_mut(&mut self) -> &mut Stats {
+        &mut self.stats
+    }
+
+    pub fn inventory(&self) -> &Inventory {
+        &self.inventory
+    }
+
+    pub fn inventory_mut(&mut self) -> &mut Inventory {
+        &mut self.inventory
+    }
+}
+
+pub struct PlayerBuilder {
+    position: Position<f64>,
+    speed: f64,
+    health: u8,
+    stats: Stats,
+    inventory: Inventory,
+}
+
+impl PlayerBuilder {
+    pub fn new() -> Self {
+        Self {
+            position: Position::default(),
+            speed: 1.0,
+            health: 100,
+            stats: Stats::new(1),
+            inventory: Inventory::new(20),
+        }
+    }
+
+    pub fn speed(mut self, speed: f64) -> Self {
+        self.speed = speed;
+        self
+    }
+
+    pub fn health(mut self, health: u8) -> Self {
+        self.health = health;
+        self
+    }
+
+    pub fn build(self) -> Player {
+        Player {
+            position: self.position,
+            speed: self.speed,
+            health: self.health,
+            stats: self.stats,
+            inventory: self.inventory,
+        }
+    }
+}use rand::rngs::ThreadRng;
+use rand::Rng;
+use std::ops::Range;
+use crate::unit::Position;
+
+#[derive(Default)]
+pub struct Wall {
+    position: Position<u16>,
+}
+
+impl Wall {
+    pub fn new(x: u16, y: u16) -> Self {
+        Self {
+            position: Position { x, y },
+        }
+    }
+
+    pub fn position(&self) -> &Position<u16> {
+        &self.position
+    }
+
+    pub fn set_rand_position(&mut self, rng: &mut ThreadRng, x_range: Range<u16>, y_range: Range<u16>) {
+        self.position.x = rng.gen_range(x_range);
+        self.position.y = rng.gen_range(y_range);
+    }
+}
+use rand::rngs::ThreadRng;
+use rand::Rng;
+use std::ops::Range;
+use crate::unit::Position;
+
+#[derive(Default)]
+pub struct Collectible {
+    position: Position<u16>,
+}
+
+impl Collectible {
+    pub fn position(&self) -> &Position<u16> {
+        &self.position
+    }
+
+    pub fn set_rand_position(&mut self, rng: &mut ThreadRng, x_range: Range<u16>, y_range: Range<u16>) {
+        self.position.x = rng.gen_range(x_range);
+        self.position.y = rng.gen_range(y_range);
+    }
+}
+use rand::rngs::ThreadRng;
+use rand::Rng;
+use std::ops::Range;
+use crate::unit::Position;
+
+#[derive(Default)]
+pub struct Enemy {
+    position: Position<f64>,
+    speed: f64,
+}
+
+impl Enemy {
+    pub fn with_speed(speed: f64) -> Self {
+        Self {
+            position: Position::default(),
+            speed,
+        }
+    }
+
+    pub fn position(&self) -> &Position<f64> {
+        &self.position
+    }
+
+    pub fn set_rand_position(&mut self, rng: &mut ThreadRng, x_range: Range<f64>, y_range: Range<f64>) {
+        self.position.x = rng.gen_range(x_range);
+        self.position.y = rng.gen_range(y_range);
+    }
+
+    pub fn move_to(&mut self, target: &Position<f64>) {
+        let dx = target.x - self.position.x;
+        let dy = target.y - self.position.y;
+        let distance = (dx * dx + dy * dy).sqrt();
+        
+        if distance > 0.1 {  // Prevent division by zero
+            let speed = self.speed * 2.0; // Increased for better gameplay
+            let ratio = speed / distance;
+            self.position.x += dx * ratio;
+            self.position.y += dy * ratio;
+        }
+    }
+}
+#[derive(Debug, PartialEq)]
+pub struct Position<T> {
+    pub x: T,
+    pub y: T,
+}
+
+impl<T: Default> Default for Position<T> {
+    fn default() -> Self {
+        Self {
+            x: T::default(),
+            y: T::default(),
+        }
+    }
+}
+// src/unit/stats.rs
+#[derive(Default, Clone, Debug)]
+pub struct Stats {
+    pub level: u32,
+    pub experience: u32,
+    pub strength: u32,
+    pub dexterity: u32,
+    pub intelligence: u32,
+    pub max_health: u32,
+    pub current_health: u32,
+    pub max_mana: u32,
+    pub current_mana: u32,
+}
+
+impl Stats {
+    pub fn new(level: u32) -> Self {
+        Self {
+            level,
+            experience: 0,
+            strength: 10 + level,
+            dexterity: 10 + level,
+            intelligence: 10 + level,
+            max_health: 100 + (level * 10),
+            current_health: 100 + (level * 10),
+            max_mana: 50 + (level * 5),
+            current_mana: 50 + (level * 5),
+        }
+    }
+
+    pub fn gain_experience(&mut self, amount: u32) {
+        self.experience += amount;
+        let exp_needed = self.level * 100;  // Simple leveling formula
+        
+        if self.experience >= exp_needed {
+            self.level_up();
+        }
+    }
+
+    fn level_up(&mut self) {
+        self.level += 1;
+        self.strength += 2;
+        self.dexterity += 2;
+        self.intelligence += 2;
+        self.max_health += 10;
+        self.current_health = self.max_health;
+        self.max_mana += 5;
+        self.current_mana = self.max_mana;
+        self.experience = 0;  // Reset experience for next level
+    }
+}// src/unit/mod.rs - Update to include new modules
+pub mod player;
+pub mod collectible;
+pub mod enemy;
+pub mod wall;
+pub mod position;
+pub mod stats;      
+pub mod inventory;  
+
+pub use player::{Player, PlayerBuilder};
+pub use collectible::Collectible;
+pub use enemy::Enemy;
+pub use wall::Wall;
+pub use position::Position;
+pub use stats::Stats;
+pub use inventory::{Inventory, Item, ItemType};use ggez::{Context, GameResult, graphics::{self, Canvas, DrawParam, Color, Mesh}};
+use glam::Vec2;
+
+use crate::game::Game;
+
+pub struct GameGraphics {
+    player_size: f32,
+    enemy_size: f32,
+    wall_size: f32,
+    collectible_size: f32,
+}
+
+impl GameGraphics {
+    pub fn new() -> Self {
+        Self {
+            player_size: 30.0,
+            enemy_size: 25.0,
+            wall_size: 40.0,
+            collectible_size: 15.0,
+        }
+    }
+
+    pub fn draw(&self, game: &Game, ctx: &mut Context) -> GameResult {
+        let mut canvas = graphics::Canvas::from_frame(ctx, Color::BLACK);
+
+        // Draw player
+        let player_pos = game.player().position();
+        let player_mesh = Mesh::new_circle(
+            ctx,
+            graphics::DrawMode::fill(),
+            Vec2::new(0.0, 0.0),
+            self.player_size,
+            0.1,
+            Color::GREEN,
+        )?;
+        canvas.draw(&player_mesh, DrawParam::default().dest(Vec2::new(player_pos.x as f32, player_pos.y as f32)));
+
+        // Draw enemies
+        let enemy_mesh = Mesh::new_circle(
+            ctx,
+            graphics::DrawMode::fill(),
+            Vec2::new(0.0, 0.0),
+            self.enemy_size,
+            0.1,
+            Color::RED,
+        )?;
+        
+        for enemy in game.enemies() {
+            let enemy_pos = enemy.position();
+            canvas.draw(&enemy_mesh, DrawParam::default().dest(Vec2::new(enemy_pos.x as f32, enemy_pos.y as f32)));
+        }
+
+        // Draw walls
+        let wall_mesh = Mesh::new_rectangle(
+            ctx,
+            graphics::DrawMode::fill(),
+            graphics::Rect::new(0.0, 0.0, self.wall_size, self.wall_size),
+            Color::new(0.5, 0.5, 0.5, 1.0),
+        )?;
+
+        // Draw collectible
+        let collectible_mesh = Mesh::new_circle(
+            ctx,
+            graphics::DrawMode::fill(),
+            Vec2::new(0.0, 0.0),
+            self.collectible_size,
+            0.1,
+            Color::YELLOW,
+        )?;
+        
+        let collectible_pos = game.collectible().position();
+        canvas.draw(&collectible_mesh, DrawParam::default().dest(Vec2::new(collectible_pos.x as f32, collectible_pos.y as f32)));
+
+        // Draw UI
+        let health_text = graphics::Text::new(format!("Health: {}", game.player().health()));
+        canvas.draw(&health_text, DrawParam::default().dest(Vec2::new(10.0, 10.0)).color(Color::WHITE));
+
+        let level_text = graphics::Text::new(format!("Level: {}", game.player().stats().level));
+        canvas.draw(&level_text, DrawParam::default().dest(Vec2::new(10.0, 30.0)).color(Color::WHITE));
+
+        canvas.finish(ctx)?;
+        Ok(())
+    }
+}use ggez::{Context, ContextBuilder, GameResult};
+use ggez::event::{self, EventHandler};
+use ggez::input::keyboard::KeyCode;
+use glam::Vec2;
+use std::time::Duration;
+
+use space_cake::game::Game;
+use space_cake::graphics::GameGraphics;
+
+#[derive(Default)]
+struct KeyState {
+    left: bool,
+    right: bool,
+    up: bool,
+    down: bool,
+}
+
+struct MainState {
+    game: Game,
+    graphics: GameGraphics,
+    keys: KeyState,
+}
+
+impl MainState {
+    pub fn new() -> Self {
+        let mut game = Game::new();
+        game.initialize();
+        let graphics = GameGraphics::new();
+
+        Self {
+            game,
+            graphics,
+            keys: KeyState::default(),
+        }
+    }
+}
+
+impl EventHandler for MainState {
+    fn update(&mut self, ctx: &mut Context) -> GameResult {
+        println!("Update called"); // Debug print
+
+        // Get time since last frame
+        let delta = ctx.time.delta();
+        println!("Delta time: {:?}", delta); // Debug print
+
+        // Handle keyboard input
+        let kb = &ctx.keyboard;
+
+        // Update key states
+        self.keys.left = kb.is_key_pressed(KeyCode::Left) || kb.is_key_pressed(KeyCode::A);
+        self.keys.right = kb.is_key_pressed(KeyCode::Right) || kb.is_key_pressed(KeyCode::D);
+        self.keys.up = kb.is_key_pressed(KeyCode::Up) || kb.is_key_pressed(KeyCode::W);
+        self.keys.down = kb.is_key_pressed(KeyCode::Down) || kb.is_key_pressed(KeyCode::S);
+
+        // Calculate movement based on key states
+        let mut movement = Vec2::ZERO;
+
+        if self.keys.left {
+            movement.x -= 1.0;
+        }
+        if self.keys.right {
+            movement.x += 1.0;
+        }
+        if self.keys.up {
+            movement.y -= 1.0;
+        }
+        if self.keys.down {
+            movement.y += 1.0;
+        }
+
+        // Normalize movement vector if moving diagonally
+        if movement.length_squared() > 0.0 {
+            movement = movement.normalize();
+        }
+
+        // Apply movement to the player
+        self.game.move_player(movement.x as f64, movement.y as f64);
+
+        // Debug: Print player position
+        println!(
+            "Player position: ({}, {})",
+            self.game.player().position().x,
+            self.game.player().position().y
+        );
+
+        // Update the game state
+        self.game.update(delta);
+
+        Ok(())
+    }
+
+    fn draw(&mut self, ctx: &mut Context) -> GameResult {
+        println!("Draw called"); // Debug print
+        self.graphics.draw(&self.game, ctx)
+    }
+}
+
+fn main() -> GameResult {
+    let (ctx, event_loop) = ContextBuilder::new("space_cake", "you")
+        .window_setup(ggez::conf::WindowSetup::default().title("Space Cake RPG"))
+        .window_mode(ggez::conf::WindowMode::default().dimensions(800.0, 600.0))
+        .build()?;
+
+    let state = MainState::new();
+    event::run(ctx, event_loop, state)
+}

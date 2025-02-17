@@ -30,8 +30,12 @@ impl Enemy {
         let dx = target.x - self.position.x;
         let dy = target.y - self.position.y;
         let distance = (dx * dx + dy * dy).sqrt();
-        let ratio = self.speed / distance;
-        self.position.x += dx * ratio;
-        self.position.y += dy * ratio;
+        
+        if distance > 0.1 {  // Prevent division by zero
+            let speed = self.speed * 2.0; // Increased for better gameplay
+            let ratio = speed / distance;
+            self.position.x += dx * ratio;
+            self.position.y += dy * ratio;
+        }
     }
 }

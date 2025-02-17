@@ -6,7 +6,6 @@ use crate::unit::Position;
 use crate::unit::Stats;
 use crate::unit::Inventory;
 
-#[derive(Default)]
 pub struct Player {
     position: Position<f64>,
     speed: f64,
@@ -45,8 +44,23 @@ impl Player {
     }
 
     pub fn move_by(&mut self, dx: f64, dy: f64) {
+        println!("move_by called: dx = {}, dy = {}", dx, dy); // Debug print
+    
+        // Print current position before update
+        println!(
+            "Current player position: ({}, {})",
+            self.position.x, self.position.y
+        );
+    
+        // Update position
         self.position.x += dx;
         self.position.y += dy;
+    
+        // Print updated position
+        println!(
+            "Updated player position: ({}, {})",
+            self.position.x, self.position.y
+        );
     }
 
     pub fn set_rand_position(&mut self, rng: &mut ThreadRng, x_range: Range<f64>, y_range: Range<f64>) {
@@ -107,6 +121,19 @@ impl PlayerBuilder {
             health: self.health,
             stats: self.stats,
             inventory: self.inventory,
+        }
+    }
+}
+
+
+impl Default for Player {
+    fn default() -> Self {
+        Self {
+            position: Position::default(),
+            speed: 1.0,
+            health: 100, // Ensure this is set to a positive value
+            stats: Stats::default(),
+            inventory: Inventory::default(),
         }
     }
 }
